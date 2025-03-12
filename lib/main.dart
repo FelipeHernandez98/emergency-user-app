@@ -1,3 +1,6 @@
+import 'package:emergency_user_app/screens/HomeScreen.dart';
+import 'package:emergency_user_app/screens/LoginScreen.dart';
+import 'package:emergency_user_app/screens/RegisterScreen.dart';
 import 'package:flutter/material.dart';
 
 void main() {
@@ -11,7 +14,12 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Flutter Demo',
+      title: 'Emergency user app',
+      // routes: {
+      //   '/': (context) => LoginScreen(),
+      //   '/register': (context) => RegisterScreen(),
+      //   //'/forgot-password': (context) => ForgotPasswordScreen(),
+      // },
       theme: ThemeData(
         // This is the theme of your application.
         //
@@ -30,7 +38,7 @@ class MyApp extends StatelessWidget {
         // tested with just a hot reload.
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
       ),
-      home: const MyHomePage(title: 'Flutter Demo Home Page'),
+      home: HomeScreen(),
     );
   }
 }
