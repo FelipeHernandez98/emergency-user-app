@@ -1,3 +1,4 @@
+import 'package:emergency_user_app/screens/ForgotPasswordScreen.dart';
 import 'package:emergency_user_app/screens/HomeScreen.dart';
 import 'package:emergency_user_app/screens/LoginScreen.dart';
 import 'package:emergency_user_app/screens/RegisterScreen.dart';
@@ -14,12 +15,12 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      debugShowCheckedModeBanner: false,
       title: 'Emergency user app',
-      // routes: {
-      //   '/': (context) => LoginScreen(),
-      //   '/register': (context) => RegisterScreen(),
-      //   //'/forgot-password': (context) => ForgotPasswordScreen(),
-      // },
+      routes: {
+        '/register': (context) => RegisterScreen(),
+        '/forgot-password': (context) => ForgotPasswordScreen(),
+      },
       theme: ThemeData(
         // This is the theme of your application.
         //
@@ -38,7 +39,7 @@ class MyApp extends StatelessWidget {
         // tested with just a hot reload.
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
       ),
-      home: HomeScreen(),
+      home: LoginScreen(),
     );
   }
 }

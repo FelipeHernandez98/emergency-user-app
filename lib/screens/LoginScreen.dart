@@ -1,7 +1,9 @@
+import 'package:emergency_user_app/screens/HomeScreen.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:flutter_spinkit/flutter_spinkit.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class LoginScreen extends StatefulWidget {
   @override
@@ -35,9 +37,6 @@ class _LoginScreenState extends State<LoginScreen> {
     if (value == null || value.isEmpty) {
       return 'Por favor ingresa tu contraseña';
     }
-    if (!_passwordRegex.hasMatch(value)) {
-      return 'La contraseña debe tener al menos 8 caracteres, una mayúscula, una minúscula, un número y un carácter especial';
-    }
     return null;
   }
 
@@ -48,28 +47,36 @@ class _LoginScreenState extends State<LoginScreen> {
         _isLoading = true;
       });
 
-      final response = await http.post(
-        Uri.parse('https://tu-backend.com/api/auth/login'),
-        body: {
-          'email': _emailController.text,
-          'password': _passwordController.text,
-        },
-      );
+      try {
+        final response = await http.post(
+          Uri.parse('http://localhost:3000/api/v1/auth/login'),
+          headers: {'Accept': 'application/json'},
+          body: {
+            'email': _emailController.text,
+            'password': _passwordController.text,
+          },
+        );
 
-      setState(() {
-        _isLoading = false;
-      });
+        setState(() {
+          _isLoading = false;
+        });
 
-      if (response.statusCode == 200) {
-        // Manejar la respuesta exitosa
-        final data = json.decode(response.body);
-        print('Login exitoso: ${data['token']}');
-        // Navegar a la pantalla principal
-      } else {
-        // Manejar el error
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Error: ${response.body}')));
+        if (response.statusCode == 201) {
+          final data = json.decode(response.body);
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setString('access_token', data['access_token']);
+
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (context) => HomeScreen()),
+          );
+        } else {
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text('Error: ${response.body}')));
+        }
+      } catch (e) {
+        print('Error al realizar la solicitud: $e');
       }
     }
   }
