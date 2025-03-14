@@ -40,7 +40,6 @@ class _LoginScreenState extends State<LoginScreen> {
     return null;
   }
 
-  // Función para enviar la petición de inicio de sesión
   Future<void> _login() async {
     if (_formKey.currentState!.validate()) {
       setState(() {
@@ -66,9 +65,10 @@ class _LoginScreenState extends State<LoginScreen> {
           final prefs = await SharedPreferences.getInstance();
           await prefs.setString('access_token', data['access_token']);
 
-          Navigator.pushReplacement(
+          Navigator.pushAndRemoveUntil(
             context,
             MaterialPageRoute(builder: (context) => HomeScreen()),
+                (Route<dynamic> route) => false,
           );
         } else {
           ScaffoldMessenger.of(

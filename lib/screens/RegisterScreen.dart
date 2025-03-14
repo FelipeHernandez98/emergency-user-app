@@ -1,8 +1,10 @@
+import 'package:emergency_user_app/screens/HomeScreen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_spinkit/flutter_spinkit.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:flutter/cupertino.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class RegisterScreen extends StatefulWidget {
   @override
@@ -19,7 +21,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _phoneNumber = TextEditingController();
   final _emergencyContact = TextEditingController();
   bool _isLoading = false;
-
 
   final _passwordRegex = RegExp(
     r'^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$',
@@ -45,39 +46,71 @@ class _RegisterScreenState extends State<RegisterScreen> {
     return null;
   }
 
+  void _showErrorDialog(String message) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Text('Error'),
+          content: Text(message),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop(); // Cierra el diálogo
+              },
+              child: Text('Aceptar'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   Future<void> _register() async {
     if (_formKey.currentState!.validate()) {
       setState(() {
         _isLoading = true;
       });
 
-      final response = await http.post(
-        Uri.parse('https://tu-backend.com/api/auth/register'),
-        body: {
-          'name': _name,
-          'lastName': _lastName,
-          'identificationNumber': _identificationNumber,
-          'email': _emailController.text,
-          'password': _passwordController.text,
-          'phoneNumber': _phoneNumber,
-          'emergencyContact': _emergencyContact
-        },
-      );
+      try {
+        final response = await http.post(
+          Uri.parse('http://localhost:3000/api/v1/auth/register'),
+          headers: {'Accept': 'application/json'},
+          body: {
+            'name': _name.text,
+            'lastname': _lastName.text,
+            'identificationNumber': _identificationNumber.text,
+            'email': _emailController.text,
+            'password': _passwordController.text,
+            'phoneNumber': _phoneNumber.text,
+            'emergencyContact': _emergencyContact.text,
+          },
+        );
 
-      setState(() {
-        _isLoading = false;
-      });
+        setState(() {
+          _isLoading = false;
+        });
 
-      if (response.statusCode == 200) {
-        // Manejar la respuesta exitosa
-        final data = json.decode(response.body);
-        print('Login exitoso: ${data['token']}');
-        // Navegar a la pantalla principal
-      } else {
-        // Manejar el error
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Error: ${response.body}')));
+        if (response.statusCode == 201) {
+          final data = json.decode(response.body);
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setString('access_token', data['access_token']);
+
+          Navigator.pushAndRemoveUntil(
+            context,
+            MaterialPageRoute(builder: (context) => HomeScreen()),
+                (Route<dynamic> route) => false,
+          );
+        } else {
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text('Error: ${response.body}')));
+        }
+      } catch (e) {
+        setState(() {
+          _isLoading = false;
+        });
+        _showErrorDialog('Error al realizar la solicitud: $e');
       }
     }
   }
@@ -85,9 +118,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text('Registrate'),
-      ),
+      appBar: AppBar(title: Text('Registrate')),
       body: Center(
         child: SingleChildScrollView(
           padding: EdgeInsets.all(16.0),
@@ -107,7 +138,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     labelText: 'Name',
                     border: OutlineInputBorder(),
                   ),
-                  validator: _validateEmail,
                 ),
                 SizedBox(height: 20),
                 TextFormField(
@@ -116,7 +146,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     labelText: 'Last name',
                     border: OutlineInputBorder(),
                   ),
-                  validator: _validateEmail,
                 ),
                 SizedBox(height: 20),
                 TextFormField(
@@ -125,7 +154,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     labelText: 'Identification number',
                     border: OutlineInputBorder(),
                   ),
-                  validator: _validateEmail,
                 ),
                 SizedBox(height: 20),
                 TextFormField(
@@ -144,7 +172,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     border: OutlineInputBorder(),
                   ),
                   obscureText: true,
-                  validator: _validatePassword,
                 ),
                 SizedBox(height: 20),
                 TextFormField(
@@ -153,7 +180,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     labelText: 'Phone number',
                     border: OutlineInputBorder(),
                   ),
-                  validator: _validateEmail,
                 ),
                 SizedBox(height: 20),
                 TextFormField(
@@ -162,18 +188,17 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     labelText: 'Emergency contact',
                     border: OutlineInputBorder(),
                   ),
-                  validator: _validateEmail,
                 ),
                 SizedBox(height: 20),
                 _isLoading
                     ? SpinKitFadingCircle(color: Colors.blue)
                     : ElevatedButton(
-                  onPressed: _register,
-                  child: Text('Registrar'),
-                  style: ElevatedButton.styleFrom(
-                    padding: EdgeInsets.symmetric(vertical: 16),
-                  ),
-                ),
+                      onPressed: _register,
+                      child: Text('Registrar'),
+                      style: ElevatedButton.styleFrom(
+                        padding: EdgeInsets.symmetric(vertical: 16),
+                      ),
+                    ),
               ],
             ),
           ),
@@ -181,5 +206,4 @@ class _RegisterScreenState extends State<RegisterScreen> {
       ),
     );
   }
-
 }

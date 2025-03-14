@@ -2,6 +2,7 @@ import 'package:emergency_user_app/screens/ForgotPasswordScreen.dart';
 import 'package:emergency_user_app/screens/HomeScreen.dart';
 import 'package:emergency_user_app/screens/LoginScreen.dart';
 import 'package:emergency_user_app/screens/RegisterScreen.dart';
+import 'package:emergency_user_app/screens/RequestAmbulanceScreen.dart';
 import 'package:flutter/material.dart';
 
 void main() {
@@ -39,7 +40,7 @@ class MyApp extends StatelessWidget {
         // tested with just a hot reload.
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
       ),
-      home: LoginScreen(),
+      home: RequestAmbulanceScreen(),
     );
   }
 }
