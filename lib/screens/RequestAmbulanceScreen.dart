@@ -1,22 +1,125 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:http/http.dart' as http;
+import 'package:socket_io_client/socket_io_client.dart' as IO;
 
 class RequestAmbulanceScreen extends StatefulWidget {
+
   @override
   _RequestAmbulanceScreenState createState() => _RequestAmbulanceScreenState();
 }
 
 class _RequestAmbulanceScreenState extends State<RequestAmbulanceScreen> {
+  final _formKey = GlobalKey<FormState>();
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
-  String? _selectedEmergencyType;
+  int? _selectedEmergencyType;
   Position? _currentPosition;
   bool _isLoadingLocation = false;
+  bool _isLoading = false;
+  IO.Socket? _socket;
+  String? _emergencyId;
+  String? _statusMessage;
 
   @override
   void initState() {
     super.initState();
     _getCurrentLocation();
+    _initializeSocket();
+  }
+
+  @override
+  void dispose() {
+    _socket?.disconnect();
+    super.dispose();
+  }
+
+  void _initializeSocket() {
+    _socket = IO.io('http://localhost:3000', <String, dynamic>{
+      'transports': ['websocket'],
+      'autoConnect': true,
+    });
+
+    _socket?.on('connect', (_) {
+      print('Conectado al servidor de WebSocket');
+    });
+
+    _socket?.on('ambulanceAssigned', (data) {
+      // Escuchar el evento de asignación de ambulancia
+      if (data['emergencyId'] == _emergencyId) {
+        setState(() {
+          _statusMessage = "Ambulancia asignada. Está en camino.";
+        });
+      }
+    });
+
+    _socket?.on('disconnect', (_) {
+      print('Desconectado del servidor de WebSocket');
+    });
+  }
+
+  Future<void> _requestAmbulance() async {
+    if (_formKey.currentState!.validate()) {
+      setState(() {
+        _isLoading = true;
+      });
+    }
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final accessToken = prefs.getString('access_token');
+
+      if (accessToken == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: No se encontró el token de acceso.')),
+        );
+        setState(() {
+          _isLoading = false;
+        });
+        return;
+      }
+
+      final response = await http.post(
+        Uri.parse('http://localhost:3000/api/v1/emergency'),
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $accessToken',
+        },
+        body: jsonEncode({
+          'idUser': 'd94c72fd-9337-422f-8ac7-0e4d8bb47743',
+          'idType': _selectedEmergencyType, // Asegúrate de que sea int
+          'location': jsonEncode({
+            'latitude': _currentPosition!.latitude,
+            'longitude': _currentPosition!.longitude,
+          }),
+          'idStatus': 1, // Se envía como número
+        }),
+      );
+
+      if (response.statusCode == 201) {
+        final responseData = jsonDecode(response.body);
+        setState(() {
+          _emergencyId = responseData['id'];
+          _statusMessage = "Solicitud enviada. Esperando asignación de ambulancia...";
+        });
+      } else {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error: ${response.body}')));
+      }
+    } catch (e) {
+      print(e);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error de red: $e')),
+      );
+    } finally {
+      setState(() {
+        _isLoading = false;
+      });
+    }
   }
 
   Future<void> _getCurrentLocation() async {
@@ -142,71 +245,78 @@ class _RequestAmbulanceScreenState extends State<RequestAmbulanceScreen> {
                   borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
                 ),
                 padding: EdgeInsets.all(16.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    DropdownButtonFormField<String>(
-                      value: _selectedEmergencyType,
-                      decoration: InputDecoration(
-                        labelText: 'Tipo de emergencia',
-                        border: OutlineInputBorder(),
-                      ),
-                      items: List.generate(
-                        5,
-                            (index) => DropdownMenuItem(
-                          value: '${index + 1}',
-                          child: Text('Emergencia ${index + 1}'),
+                child: Form(
+                  key: _formKey,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      DropdownButtonFormField<int>(
+                        value: _selectedEmergencyType,
+                        decoration: InputDecoration(
+                          labelText: 'Tipo de emergencia',
+                          border: OutlineInputBorder(),
                         ),
-                      ),
-                      onChanged: (value) {
-                        setState(() {
-                          _selectedEmergencyType = value;
-                        });
+                        items: List.generate(
+                          5,
+                              (index) => DropdownMenuItem(
+                            value: index + 1,
+                            child: Text('Emergencia ${index + 1}'),
+                          ),
+                        ),
+                        onChanged: (value) {
+                          setState(() {
+                            _selectedEmergencyType = value;
+                          });
+                        },validator: (value) {
+                        if (value == null) {
+                          return 'Selecciona un tipo de emergencia';
+                        }
+                        return null;
                       },
-                    ),
-                    SizedBox(height: 16),
-                    Row(
-                      children: [
-                        Text(
-                          'Ubicación actual: ',
-                          style: TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                        _isLoadingLocation
-                            ? CircularProgressIndicator()
-                            : Text(
-                          _currentPosition != null
-                              ? 'Lat: ${_currentPosition!.latitude}, Long: ${_currentPosition!.longitude}'
-                              : 'No disponible',
-                          style: TextStyle(color: Colors.grey[700]),
-                        ),
-                      ],
-                    ),
-                    Spacer(),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                      children: [
-                        ElevatedButton(
-                          onPressed: () {
-                            // Acción de solicitar
-                          },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.green,
+                      ),
+                      SizedBox(height: 16),
+                      Row(
+                        children: [
+                          Text(
+                            'Ubicación actual: ',
+                            style: TextStyle(fontWeight: FontWeight.bold),
                           ),
-                          child: Text('Solicitar'),
-                        ),
-                        ElevatedButton(
-                          onPressed: () {
-                            Navigator.pop(context);
-                          },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.red,
+                          _isLoadingLocation
+                              ? CircularProgressIndicator()
+                              : Text(
+                            _currentPosition != null
+                                ? 'Lat: ${_currentPosition!.latitude}, Long: ${_currentPosition!.longitude}'
+                                : 'No disponible',
+                            style: TextStyle(color: Colors.grey[700]),
                           ),
-                          child: Text('Cancelar'),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
+                        ],
+                      ),
+                      Spacer(),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                        children: [
+                          ElevatedButton(
+                            onPressed: _requestAmbulance,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.green,
+                            ),
+                            child: Text('Solicitar'),
+                          ),
+                          ElevatedButton(
+                            onPressed: () {
+                              Navigator.pop(context);
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.red,
+                            ),
+                            child: Text('Cancelar'),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                )
+
               ),
             ),
           ),

@@ -105,7 +105,7 @@ class HomeScreen extends StatelessWidget {
                   child: Center(
                     child: ElevatedButton(
                       onPressed: () {
-                        Navigator.pushNamed(context, '/request-emergency');
+                        Navigator.pushNamed(context, '/request-ambulance');
                       },
                       style: ElevatedButton.styleFrom(
                         padding: EdgeInsets.all(20),

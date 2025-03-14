@@ -21,6 +21,7 @@ class MyApp extends StatelessWidget {
       routes: {
         '/register': (context) => RegisterScreen(),
         '/forgot-password': (context) => ForgotPasswordScreen(),
+        '/request-ambulance': (context) => RequestAmbulanceScreen(),
       },
       theme: ThemeData(
         // This is the theme of your application.
@@ -40,7 +41,7 @@ class MyApp extends StatelessWidget {
         // tested with just a hot reload.
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
       ),
-      home: RequestAmbulanceScreen(),
+      home: LoginScreen(),
     );
   }
 }
