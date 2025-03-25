@@ -7,7 +7,6 @@ import 'package:http/http.dart' as http;
 import 'package:socket_io_client/socket_io_client.dart' as IO;
 
 class RequestAmbulanceScreen extends StatefulWidget {
-
   @override
   _RequestAmbulanceScreenState createState() => _RequestAmbulanceScreenState();
 }
@@ -46,11 +45,36 @@ class _RequestAmbulanceScreenState extends State<RequestAmbulanceScreen> {
       print('Conectado al servidor de WebSocket');
     });
 
-    _socket?.on('ambulanceAssigned', (data) {
-      // Escuchar el evento de asignación de ambulancia
-      if (data['emergencyId'] == _emergencyId) {
+    _socket?.on('emergencyReceived', (data) {
+      print("Evento recibido: $data");
+
+      // Asegúrate de que `data` es un Map y procesa sus valores
+      if (data is Map<String, dynamic>) {
+        String emergencyId = data['emergencyId'] ?? '';
+        String ambulanceId = data['ambulanceId'] ?? '';
+
+        // Comparar con `_emergencyId`
+        if (emergencyId == _emergencyId) {
+          setState(() {
+            _statusMessage = "Ambulancia asignada. Está en camino.";
+          });
+        }
+      } else {
+        print("Formato inesperado: $data");
+      }
+    });
+
+    // Escuchar el evento `locationUpdated`
+    _socket?.on('locationUpdated', (data) {
+      print("Location updated: $data");
+      if (data != null && data is Map<String, dynamic>) {
+        final ambulanceId = data['ambulanceId'];
+        final location = data['location'];
+        final latitude = location['latitude'];
+        final longitude = location['longitude'];
         setState(() {
-          _statusMessage = "Ambulancia asignada. Está en camino.";
+        _statusMessage =
+            "La ubicación de la ambulancia $ambulanceId es: $latitude y $longitude";
         });
       }
     });
@@ -101,9 +125,11 @@ class _RequestAmbulanceScreenState extends State<RequestAmbulanceScreen> {
 
       if (response.statusCode == 201) {
         final responseData = jsonDecode(response.body);
+        print(responseData['id']);
         setState(() {
           _emergencyId = responseData['id'];
-          _statusMessage = "Solicitud enviada. Esperando asignación de ambulancia...";
+          _statusMessage =
+              "Solicitud enviada. Esperando asignación de ambulancia...";
         });
       } else {
         ScaffoldMessenger.of(
@@ -112,9 +138,9 @@ class _RequestAmbulanceScreenState extends State<RequestAmbulanceScreen> {
       }
     } catch (e) {
       print(e);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error de red: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Error de red: $e')));
     } finally {
       setState(() {
         _isLoading = false;
@@ -137,7 +163,8 @@ class _RequestAmbulanceScreenState extends State<RequestAmbulanceScreen> {
       if (permission == LocationPermission.whileInUse ||
           permission == LocationPermission.always) {
         final position = await Geolocator.getCurrentPosition(
-            desiredAccuracy: LocationAccuracy.high);
+          desiredAccuracy: LocationAccuracy.high,
+        );
         setState(() {
           _currentPosition = position;
         });
@@ -245,78 +272,96 @@ class _RequestAmbulanceScreenState extends State<RequestAmbulanceScreen> {
                   borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
                 ),
                 padding: EdgeInsets.all(16.0),
-                child: Form(
-                  key: _formKey,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      DropdownButtonFormField<int>(
-                        value: _selectedEmergencyType,
-                        decoration: InputDecoration(
-                          labelText: 'Tipo de emergencia',
-                          border: OutlineInputBorder(),
-                        ),
-                        items: List.generate(
-                          5,
-                              (index) => DropdownMenuItem(
-                            value: index + 1,
-                            child: Text('Emergencia ${index + 1}'),
+                child:
+                    _statusMessage == null
+                        ? Form(
+                          key: _formKey,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              DropdownButtonFormField<int>(
+                                value: _selectedEmergencyType,
+                                decoration: InputDecoration(
+                                  labelText: 'Tipo de emergencia',
+                                  border: OutlineInputBorder(),
+                                ),
+                                items: List.generate(
+                                  5,
+                                  (index) => DropdownMenuItem(
+                                    value: index + 1,
+                                    child: Text('Emergencia ${index + 1}'),
+                                  ),
+                                ),
+                                onChanged: (value) {
+                                  setState(() {
+                                    _selectedEmergencyType = value;
+                                  });
+                                },
+                                validator: (value) {
+                                  if (value == null) {
+                                    return 'Selecciona un tipo de emergencia';
+                                  }
+                                  return null;
+                                },
+                              ),
+                              SizedBox(height: 16),
+                              Row(
+                                children: [
+                                  Text(
+                                    'Ubicación actual: ',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  _isLoadingLocation
+                                      ? CircularProgressIndicator()
+                                      : Text(
+                                        _currentPosition != null
+                                            ? 'Lat: ${_currentPosition!.latitude}, Long: ${_currentPosition!.longitude}'
+                                            : 'No disponible',
+                                        style: TextStyle(
+                                          color: Colors.grey[700],
+                                        ),
+                                      ),
+                                ],
+                              ),
+                              Spacer(),
+                              Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceEvenly,
+                                children: [
+                                  ElevatedButton(
+                                    onPressed: _requestAmbulance,
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: Colors.green,
+                                    ),
+                                    child: Text('Solicitar'),
+                                  ),
+                                  ElevatedButton(
+                                    onPressed: () {
+                                      Navigator.pop(context);
+                                    },
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: Colors.red,
+                                    ),
+                                    child: Text('Cancelar'),
+                                  ),
+                                ],
+                              ),
+                            ],
                           ),
-                        ),
-                        onChanged: (value) {
-                          setState(() {
-                            _selectedEmergencyType = value;
-                          });
-                        },validator: (value) {
-                        if (value == null) {
-                          return 'Selecciona un tipo de emergencia';
-                        }
-                        return null;
-                      },
-                      ),
-                      SizedBox(height: 16),
-                      Row(
-                        children: [
-                          Text(
-                            'Ubicación actual: ',
-                            style: TextStyle(fontWeight: FontWeight.bold),
-                          ),
-                          _isLoadingLocation
-                              ? CircularProgressIndicator()
-                              : Text(
-                            _currentPosition != null
-                                ? 'Lat: ${_currentPosition!.latitude}, Long: ${_currentPosition!.longitude}'
-                                : 'No disponible',
-                            style: TextStyle(color: Colors.grey[700]),
-                          ),
-                        ],
-                      ),
-                      Spacer(),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                        children: [
-                          ElevatedButton(
-                            onPressed: _requestAmbulance,
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.green,
+                        )
+                        : Center(
+                          child: Text(
+                            _statusMessage!,
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.green[800],
                             ),
-                            child: Text('Solicitar'),
+                            textAlign: TextAlign.center,
                           ),
-                          ElevatedButton(
-                            onPressed: () {
-                              Navigator.pop(context);
-                            },
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.red,
-                            ),
-                            child: Text('Cancelar'),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                )
-
+                        ),
               ),
             ),
           ),
